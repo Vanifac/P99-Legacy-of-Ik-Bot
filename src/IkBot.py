@@ -2,7 +2,6 @@ import threading
 import asyncio
 import time
 import discord
-import random
 import os
 import re
 
@@ -16,6 +15,10 @@ import myconfig
 # allow for testing, by forcing the bot to read an old log file for the VT and VD fights
 TEST_BOT                = False
 #TEST_BOT                = True
+
+
+
+
 
 
 
@@ -164,6 +167,7 @@ elf     = EverquestLogFile()
 async def parse():
 
     print('Parsing Started')
+    print('Make sure to turn on logging in EQ with /log command!')
 
     # process the log file lines here
     while elf.is_parsing() == True:
@@ -233,7 +237,6 @@ async def on_ready():
     await auto_start()
 
 
-
 # on_message - catches everything, messages and commands
 # note the final line, which ensures any command gets processed as a command, and not just absorbed here as a message
 @client.event
@@ -243,127 +246,6 @@ async def on_message(message):
     channel = message.channel
     print('Content received: [{}] from [{}] in channel [{}]'.format(content, author, channel))
     await client.process_commands(message)
-
-
-
-# TODO: Probably can delete all of the client commands now that it runs automagically
-
-
-# ping command
-@client.command()
-async def ping(ctx):
-    print('Command received: [{}] from [{}]'.format(ctx.message.content, ctx.message.author))
-    await ctx.send('Latency = {} ms'.format(round(client.latency*1000)))
-
-
-
-# firedrill command
-# test the ability to send a message to the #logging channel
-@client.command(aliases = ['fd', '911'])
-async def firedrill(ctx):
-    print('Command received: [{}] from [{}]'.format(ctx.message.content, ctx.message.author))
-    await client.alarm('This is a test.  This is only a test.')
-
-
-
-# show all the triggers being monitored
-@client.command()
-async def triggers(ctx):
-    print('Command received: [{}] from [{}]'.format(ctx.message.content, ctx.message.author))
-
-    # list all the target mobs
-    await ctx.send('*Target Mobs:*')
-    for target in elf.target_list:
-        await ctx.send('|        {}'.format(target))
-
-    # list all the triggers
-    await ctx.send('*Triggers:*')
-    for trigger in elf.trigger_list:
-        await ctx.send('|        {}'.format(trigger))
-
-
-
-# start command
-@client.command(aliases = ['go'])
-async def start(ctx, charname = None):
-    print('Command received: [{}] from [{}]'.format(ctx.message.content, ctx.message.author))
-
-    # already parsing?
-    if elf.is_parsing():
-        await ctx.send('Already parsing character log for: [{}]'.format(elf.char_name))
-        await ctx.send('Log filename: [{}]'.format(elf.filename))
-        await ctx.send('Parsing initiated by: [{}]'.format(elf.author))
-        
-    else:
-        # new log file name get passed?
-        if charname:
-            elf.char_name = charname
-        else:
-            elf.char_name = myconfig.DEFAULT_CHAR_NAME
-        elf.build_filename()
-
-        # open the log file to be parsed
-        # allow for testing, by forcing the bot to read an old log file for the VT and VD fights
-        if TEST_BOT == False:
-            # start parsing.  The default behavior is to open the log file, and begin reading it from tne end, i.e. only new entries
-            rv = elf.open(ctx.message.author)
-
-        else:
-            # use a back door to force the system to read files from the beginning that contain VD / VT fights to test with
-            elf.filename = elf.base_directory + elf.logs_directory + 'test_fights.txt'
-
-            # start parsing, but in this case, start reading from the beginning of the file, rather than the end (default)
-            rv = elf.open(ctx.message.author, seek_end = False)
-
-
-        # if the log file was successfully opened, then initiate parsing
-        if rv:
-            # status message
-            await ctx.send('Now parsing character log for: [{}]'.format(elf.char_name))
-            await ctx.send('Log filename: [{}]'.format(elf.filename))
-            await ctx.send('Parsing initiated by: [{}]'.format(elf.author))
-            await ctx.send('Heartbeat timeout (minutes): [{}]'.format(elf.heartbeat))
-
-            # create the background processs and kick it off
-            client.loop.create_task(parse())
-        else:
-            await ctx.send('ERROR: Could not open character log file for: [{}]'.format(elf.char_name))
-            await ctx.send('Log filename: [{}]'.format(elf.filename))
-
-
-
-# stop command
-@client.command()
-async def stop(ctx):
-    print('Command received: [{}] from [{}]'.format(ctx.message.content, ctx.message.author))
-
-    if elf.is_parsing():
-
-        # only the person who started the log can close it
-        if elf.author == ctx.message.author:
-            # stop parsing
-            elf.close()
-            await ctx.send('Stopped parsing character log for: [{}]'.format(elf.char_name))
-        else:
-            await ctx.send('Error: Parsing can only be stopped by the same person who started it.  Starter: [{}], !stop requestor [{}]'.format(elf.author, ctx.message.author))
-
-    else:
-        await ctx.send('Not currently parsing')
-
-
-
-# status command
-@client.command()
-async def status(ctx):
-    print('Command received: [{}] from [{}]'.format(ctx.message.content, ctx.message.author))
-
-    if elf.is_parsing():
-        await ctx.send('Parsing character log for: [{}]'.format(elf.char_name))
-        await ctx.send('Log filename: [{}]'.format(elf.filename))
-        await ctx.send('Parsing initiated by: [{}]'.format(elf.author))
-        await ctx.send('Heartbeat timeout (minutes): [{}]'.format(elf.heartbeat))
-    else:
-        await ctx.send('Not currently parsing')
 
 
 #################################################################################################
