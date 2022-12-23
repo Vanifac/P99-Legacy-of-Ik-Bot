@@ -52,7 +52,7 @@ BOT_COMMAND_PREFIX      = '!'
 #BOT_INTENTS     = 
 
 # token corresponds to the bot from discord developer portal
-BOT_TOKEN               = 'MTA1NDY4NjA5NDMxMjA4MzQ5Nw.G4pRtO.p5-YjHlBTuiNht7qdsvWOAeeLPm2Kcf-G-A1Po'
+BOT_TOKEN               = ''
 
 # some server ID's
 DISCORD_SERVER_NAME         = "Vanifac's server"
