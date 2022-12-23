@@ -48,9 +48,12 @@ HEARTBEAT               = 60
 # change this if you need to have multiple bots with same commands present on a server
 BOT_COMMAND_PREFIX      = '!'
 
+# Bot intents/permissions - new in 1.5
+#BOT_INTENTS     = 
+
 # token corresponds to the bot from discord developer portal
-BOT_TOKEN               = '<INSERT_BOT_TOKEN>'
+BOT_TOKEN               = 'MTA1NDY4NjA5NDMxMjA4MzQ5Nw.G4pRtO.p5-YjHlBTuiNht7qdsvWOAeeLPm2Kcf-G-A1Po'
 
 # some server ID's
-DISCORD_SERVER_NAME         = '<INSERT DISCORD NAME ie LevelUpDiscord>'
-DISCORD_SERVER_CHANNELID    = 293874982734  # Replace this with your ChannelID - Select it in Dev mode
+DISCORD_SERVER_NAME         = "Vanifac's server"
+DISCORD_SERVER_CHANNELID    = 883433937391722529  # Replace this with your ChannelID - Select it in Dev mode
