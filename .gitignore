@@ -129,3 +129,7 @@ dmypy.json
 .pyre/
 .idea/
 *.zip
+
+src/IkBotCred.json
+config.ini
+test.py

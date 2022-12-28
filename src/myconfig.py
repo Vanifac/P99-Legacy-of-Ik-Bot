@@ -1,5 +1,6 @@
 from configparser import ConfigParser
 from tkinter import Tk, filedialog
+from json import dumps
 
 CONFIG_NAME             = 'config.ini'
 CONFIG_EQ_KEY           = 'EVERQUEST_DATA'
@@ -20,7 +21,7 @@ except:
 
 if eqdata is None:
     eqdata = {
-        CONFIG_CHAR_NAME_KEY: input("Enter character name:")
+        CONFIG_CHAR_NAME_KEY: input("Enter character name:").title()
     }
 
     print('Select where P99 Everquest is Installed ie C:\\Everquest')
@@ -55,5 +56,8 @@ BOT_COMMAND_PREFIX      = '!'
 BOT_TOKEN               = ''
 
 # some server ID's
-DISCORD_SERVER_NAME         = "Vanifac's server"
-DISCORD_SERVER_CHANNELID    = 883433937391722529  # Replace this with your ChannelID - Select it in Dev mode
+DISCORD_SERVER_NAME         = ""
+DISCORD_SERVER_CHANNELID    = 123  # Replace this with your ChannelID - Select it in Dev mode
+
+# Google Sheets Key
+GOOGLE_SHEETS_KEY = dumps({''})    # insert google sheets service account json
