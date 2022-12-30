@@ -10,7 +10,6 @@ __pycache__/
 .Python
 build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
@@ -130,8 +129,5 @@ dmypy.json
 .idea/
 *.zip
 
-src/IkBotCred.json
 config.ini
 test.py
-src/myconfig.py
-src/IkBot.py

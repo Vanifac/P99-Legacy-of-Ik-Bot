@@ -6,14 +6,23 @@ v2021.0.1 was developed by [LevelUpLarry](https://www.leveluplarry.com) himself 
 
 v2021.0.2 was developed by [Thomas Silloway](https://github.com/ThomasSilloway) 
 
+v2023.0.1 was developed by [Vanifac](https://github.com/Vanifac) 
+
 Special Thanks:
- - Vanifac
  - Grondarr
 
 Connect with us in [LevelUpLarry's discord](https://discord.gg/SgKrGnM) in the `#legacy-of-ik` channel!
 
 ## Current Features
- - Send a message to [LevelUpLarry's discord](https://discord.gg/SgKrGnM) when your character dies
+ - Send a message to [LevelUpLarry's discord](https://discord.gg/SgKrGnM) when you character does one of the following:
+    - Dies
+    - Levels up to a milestone
+    - Tradeskills up to a milestone
+    - Kills a target mob
+    - Loots a target Item
+    - Sees a new Legacy of Ik Guild Member
+- Random "in character" lines from The Emperor for different events
+- Updates Legacy of Ik Roster via /who commands
 
 ## Usage
 - Start up & login to your Ik character
@@ -25,18 +34,12 @@ Connect with us in [LevelUpLarry's discord](https://discord.gg/SgKrGnM) in the `
 Note: To use on another character or if your EQ install changes, you can modify `config.ini` that is created next to the executable
 
 ## Aspirations
+- Automatically identify which log is active and parse from there.
+- Automatic screenshots of milestone events.
+    -With user permission - Posting auto-screenshots to Milestone channel
 
 We are seeking development help for the following features:
-
-- Start parsing immediately when IkBot.py is run instead of requiring the !start command 
-- Add random "in character" lines from The Emperor for different events
 - Allow the bot to be run via powershell with input parameters saved & passed via commandline to python for `BASE_DIRECTORY` and `DEFAULT_CHAR_NAME`
-- Track achievements in discord for special items that are looted
-- Send level up messages to the discord
-- Add killed by info to the death messages
-- Send a message when specific named NPCs die
-- Automatically update the [tracking spreadsheet](https://docs.google.com/spreadsheets/d/1370kZTY0VaTuk82JBYjBFfBSlhyKK4-FO_TlxQtyNb4/edit?pli=1#gid=0) with new levels
-  - Our current idea is to use the output of `/who all guild` to send updates 
 
 Development Note:
  - Please do all testing in your own discord by modifying `myconfig.py` with your `PERSONAL_SERVER_NAME` and `PERSONAL_SERVER_POPID` before submitting a pull request
