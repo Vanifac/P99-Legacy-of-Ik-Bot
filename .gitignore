@@ -133,3 +133,5 @@ dmypy.json
 src/IkBotCred.json
 config.ini
 test.py
+src/myconfig.py
+src/IkBot.py

@@ -5,6 +5,7 @@ import re
 import threading
 import time
 from datetime import datetime
+from typing import Self
 
 import discord
 import pygsheets
@@ -23,13 +24,13 @@ CST = pytz.timezone('US/Central')
 
 # Google sheets integration
 gc = pygsheets.authorize(service_account_json=myconfig.GOOGLE_SHEETS_KEY)
-IkBotSheet = gc.open('IkBot')
-roster_Sheet = IkBotSheet.worksheet_by_title('Roster')
-target_Sheet = IkBotSheet.worksheet_by_title('Targets')
-item_Sheet = IkBotSheet.worksheet_by_title('Items')
-taunt_Sheet = IkBotSheet.worksheet_by_title('Taunts')
-trade_Sheet = IkBotSheet.worksheet_by_title('Trade')
+ikbot_sheet  = gc.open('IkBot')
 
+roster_sheet = ikbot_sheet.worksheet_by_title('Roster')
+target_sheet = ikbot_sheet.worksheet_by_title('Targets')
+item_sheet   = ikbot_sheet.worksheet_by_title('Items')
+taunt_Sheet  = ikbot_sheet.worksheet_by_title('Taunts')
+trade_sheet  = ikbot_sheet.worksheet_by_title('Trade')
 
 #################################################################################################
 
@@ -53,17 +54,17 @@ class EverquestLogFile:
         '^(\w)+ tells you, \'Attacking (.+) Master.\''
     ]
 
-    # list of targets/items/skills which this log file watches for
-    target_list = target_Sheet.range('A:A', returnas='matrix')
-    item_list = item_Sheet.range('A:A', returnas='matrix')
-    trade_list = trade_Sheet.range('A:A', returnas='matrix')
-    guild_list = roster_Sheet.range('A:A', returnas='matrix')
+    target_list  = [cell[0] for cell in target_sheet.range('A2:A', returnas='matrix')]
+    item_list    = [cell[0] for cell in item_sheet.range('A2:A', returnas='matrix')]
+    trade_list   = [cell[0] for cell in trade_sheet.range('A2:A', returnas='matrix')]
+    roster_list  = [cell[0] for cell in roster_sheet.range('A2:A', returnas='matrix')]
 
     # General Variables
-    myZone = 'Unknown'
-    myPet = 'Unknown'
-    dictSkills = {}
-    strSkills = ''
+    my_zone = 'Unknown'
+    my_level ='1'
+    my_pet = 'Unknown'
+    tradeskills_dict = {}
+    tradeskills_string = ''
 
     #
     # ctor
@@ -151,12 +152,6 @@ class EverquestLogFile:
         else:
             return None
 
-    # def get_cell_values(name, col):
-    #    Row = 123
-    #    column = 123
-    #
-    #    return
-
     # regex match?
     def regex_match(self, line):
         event = None
@@ -164,116 +159,110 @@ class EverquestLogFile:
         trunc_line = line[27:]
         # walk thru the target list and trigger list and see if we have any match
         for trigger in self.trigger_list:
-            if m := re.match(trigger, trunc_line):
+            if re.match(trigger, trunc_line):
                 # DEATH
                 if 'You have been slain' in trunc_line:
                     mob = trunc_line.index('by ')+3, trunc_line.index("\n")
                     event = 'SelfDeath', trunc_line[mob[0]:mob[1]]
 
-                # Roster Updates
-                # elif re.match('^Players (on|in) EverQuest:', trunc_line):
-                #    print('Who string start')
-                #    roster_Sheet.unlink(save_grid=True)
+                #Roster Updates
+                elif re.match('^Players (on|in) EverQuest:', trunc_line):
+                    elf.roster_list = [cell[0] for cell in roster_sheet.range('A:A', returnas='matrix')]
+                    return None
                 elif '<Legacy of Ik>' in trunc_line:
                     char = self.parse_who_string(trunc_line)
-                    event = self.update_roster(char)
+                    return self.update_roster(char)
                 # elif re.match('^There (is|are) . (player|players) in', trunc_line):
                     # roster_Sheet.sort_range('A2', 'K100', basecolumnindex=5, sortorder='DESCENDING')
-                    # TODO link?
 
                 # Level Parsing
                 elif 'You have gained a level! Welcome to level' in trunc_line:
-                    level = int(trunc_line[-4:-1].strip('!'))
-                    print(level)
-                    if level % 5 == 0 and level > 9:
-                        event = 'LevelUp', level
+                    self.my_level = int(trunc_line[-4:-1].strip('!'))
+                    if self.my_level % 5 == 0 and self.my_level > 9:
+                        return ['LevelUp', elf.char_name, self.my_level]
 
                 # ZONE Tracking
                 elif 'You have entered ' in trunc_line:
-                    self.myZone = trunc_line[17:trunc_line.index(".")]
+                    self.my_zone = trunc_line[17:trunc_line.index(".")]
 
                 # Pet Parsing
                 elif re.match('^(\w)+ tells you, \'Attacking (.+) Master.\'', trunc_line):
-                    self.myPet = trunc_line[:trunc_line.index(' tells')]
+                    self.my_pet = trunc_line[:trunc_line.index(' tells')]
 
-                # Kill Parsing
+                # Kill Parsing Self / Pet / Ik Member
                 elif 'You have slain ' in trunc_line:
-                    for target in self.target_list:
-                        if target[0] in trunc_line:
-                            event = 'Kill', self.char_name, target[0]
+                    if event := [['Kill', elf.char_name, target]
+                                 for target in self.target_list if target in trunc_line]:
+                        return event[0]
                 elif ' has been slain by ' in trunc_line:
-                    for target in self.target_list:
-                        if target[0] in trunc_line:
-                            if self.myPet in trunc_line:
-                                event = 'Kill', self.char_name, target[0]
-                            else:
-                                for member in self.guild_list:
-                                    if member[0] in trunc_line:
-                                        event = 'Kill', member[0], target[0]
+                    if event := [['Kill', elf.char_name, target]
+                                 for target in self.target_list
+                                 if elf.my_pet in trunc_line and target in trunc_line]:
+                        return event[0]
+                    if event := [['Kill', member, target]
+                                 for member in self.roster_list for target in self.target_list
+                                 if member in trunc_line and target in trunc_line]:
+                        return event[0]
 
                 # Loot Parsing
                 elif 'You have looted a' in trunc_line:
-                    for item in self.item_list:
-                        if item[0] in trunc_line:
-                            event = 'SelfLoot', item[0]
+                    if event := [['Loot', elf.char_name, item]
+                                 for item in self.item_list if item in trunc_line]:
+                        return event[0]
                 elif 'has looted a' in trunc_line:
-                    for item in self.item_list:
-                        if item[0] in trunc_line:
-                            for member in self.guild_list:
-                                if member[0] in trunc_line:
-                                    event = 'GuildLoot', item[0], member[0]
+                    if event := [['Loot', member, item]
+                                 for member in self.roster_list for item in self.item_list
+                                 if member in trunc_line and item in trunc_line]:
+                        return event[0]
 
                 # Tradeskills
                 elif 'You have become better at ' in trunc_line:
+                    skill = int(trunc_line[-5:trunc_line.index(")")].strip('( '))
                     for trade in self.trade_list:
-                        skill = int(
-                            trunc_line[-5:trunc_line.index(")")].strip('( '))
-                        if trade[0] in trunc_line and skill > 24:
-                            if not self.dictSkills:
-                                self.strSkills = roster_Sheet.cell((roster_Sheet.find(
-                                    self.char_name)[0].row, roster_Sheet.find('Tradeskills')[0].col)).value
-                                if self.strSkills:
-                                    self.dictSkills = {
-                                        x.strip(): y.strip()
-                                        for x, y in (
-                                            element.split(' ')
-                                            for element in self.strSkills.split('/')
-                                        )}
-                            self.dictSkills.update({trade[0]: f'({skill})'})
+                        if trade in trunc_line and skill > 24:
+                            if not self.tradeskills_dict:
+                                print('nodict')
+                                self.tradeskills_string = roster_sheet.cell((roster_sheet.find(self.char_name)[0].row, roster_sheet.find('Tradeskills')[0].col)).value
+                                if self.tradeskills_string:
+                                    print('Building dict from string')
+                                    self.tradeskills_dict = {x.strip(): y.strip() for x, y in (element.split(' ') for element in self.tradeskills_string.split(' / '))}
+                            self.tradeskills_dict.update({trade: f'({skill})'})
                             if skill % 50 == 0:
-                                event = 'Trade', trade[0], skill
+                                event = 'Trade', trade, skill
 
         # only executes if loops did not return already
         return event
-    
+
     # Build character roster entry
     def parse_who_string(self, whoStr):
         ind = whoStr.index('] '), whoStr.index(' ('), whoStr.index(' ')
-        if '<Legacy of Ik> ZONE:' in whoStr:
-            z1 = whoStr.index(': '), whoStr.index("\n")-2
-            char = [whoStr[ind[0]+2:ind[1]], whoStr[ind[2]+1:ind[0]], whoStr[1:ind[2]], whoStr[z1[0]+2:z1[1]], datetime.now(CST).strftime("%m/%d/%Y")]
-            if char[0] in self.char_name:
-                self.myZone = char[3]
+        char = [whoStr[ind[0]+2:ind[1]], whoStr[ind[2]+1:ind[0]], whoStr[1:ind[2]], '', datetime.now(CST).strftime("%m/%d/%Y")]
+        if zone_update := 'ZONE:' in whoStr:
+            z_ind = whoStr.index(': ')+2, whoStr.index("\n")-2
+            char[3] = whoStr[z_ind[0]:z_ind[1]]
         else:
-            char = [whoStr[ind[0]+2:ind[1]], whoStr[ind[2]+1:ind[0]], whoStr[1:ind[2]], self.myZone, datetime.now(CST).strftime("%m/%d/%Y")]
-        if char[0] in self.char_name:
-            char.append('/'.join(' '.join((key,val)) for (key,val) in self.dictSkills.items()))
+            char[3] = self.my_zone
+
+        if char[0] == self.char_name:
+            self.my_level = char[2]
+            if zone_update:
+                self.my_zone = char[3]
+            if self.tradeskills_dict:
+                char.append(' / '.join(' '.join((key, val)) for (key, val) in self.tradeskills_dict.items()))
         return char
 
     # Update the Roster
     def update_roster(self, char):
-        cell = roster_Sheet.find(char[0])
-        if [] != cell:
+        if char[0] in self.roster_list:
             # Update existing member
-            print(f"###########  {char[0]} found.. updating roster!  ###########")
-            roster_Sheet.update_row(cell[0].row, char[2:], col_offset=2)
-            event = 'Update'
+            cell = roster_sheet.find(char[0])
+            roster_sheet.update_row(cell[0].row, char[2:], col_offset=2)
+            event = 'Update', char[0]
         else:
             # Add new member
-            print(f"###########  {char[0]} not found.. adding to roster!  ###########")
-            roster_Sheet.append_table(values=char)
+            roster_sheet.append_table(values=char)
+            self.roster_list = [cell[0] for cell in roster_sheet.range('A:A', returnas='matrix')]
             event = 'New', char[0]
-            self.guild_list = roster_Sheet.range('A:A', returnas='matrix')
         return event
 
 
@@ -289,55 +278,51 @@ elf = EverquestLogFile()
 
 
 async def parse():
-
+    
     print('Parsing Started')
     print('Make sure to turn on logging in EQ with /log command!')
 
     # process the log file lines here
     while elf.is_parsing() == True:
-
         # read a line
         line = elf.readline()
         now = time.time()
         if line:
+            #time.sleep(.05)
             elf.prevtime = now
             print(line, end='')
 
             # does it match a trigger?
             if event := elf.regex_match(line):
+                time.sleep(.5)
+                #print(event)
                 # Discord Bot Triggers
                 # Level Up
                 if 'LevelUp' in event[0]:
-                    await client.alarm(f'{elf.char_name} has reached level {event[1]}! Now get back to work!')
-                    
+                    await client.alarm(f'{event[1]} has reached level {event[2]}! Now get back to work!')
+
                 # Self Death
-                if 'SelfDeath' in event[0]:
+                elif 'SelfDeath' in event[0]:
                     taunt_death = taunt_Sheet.range('B:B', returnas='matrix')
                     await client.alarm(f'{elf.char_name} has fallen to {event[1]}! {random.choice(taunt_death)[0]}')
-                    
+
                 # Roster Updates
                 elif 'New' in event[0]:
-                    taunt_NewMember = taunt_Sheet.range('A:A', returnas='matrix')
-                    await client.alarm(f'Bahaha! {event[1]} has pledged their life to the Legacy! {random.choice(taunt_NewMember)[0]}')
-                    
+                    taunt_new_member = taunt_Sheet.range('A:A', returnas='matrix')
+                    await client.alarm(f'Bahaha! {event[1]} has pledged their life to the Legacy! {random.choice(taunt_new_member)[0]}')
+
                 # Tradeskill Milestones
                 elif 'Trade' in event[0]:
-                    quip_Loc = f'B{str(elf.trade_list.index([event[1]]) + 1)}'
-                    await client.alarm(f'{event[2]} {event[1]}! Pretty impressive {elf.char_name}. {trade_Sheet.get_value(quip_Loc)}')
-                    
+                    quip_loc = f'B{str(elf.trade_list.index(event[1]) + 1)}'
+                    await client.alarm(f'{event[2]} {event[1]}! Pretty impressive {elf.char_name}. {trade_sheet.get_value(quip_loc)}')
+
                 # Notable Kills
                 elif 'Kill' in event[0]:
-                    if 'Self' in event[0]:
-                        await client.alarm(f'{elf.char_name} just killed {event[1]}! **FOR IK!** Any good loot?')
-                    elif 'They' in event[0]:
-                        await client.alarm(f'{event[2]} just killed {event[1]}! **FOR IK!** Any good loot?')
-                        
+                    await client.alarm(f'{event[1]} just killed {event[2]}! **FOR IK!** Any good loot?')
+
                 # Notable Loot
                 elif 'Loot' in event[0]:
-                    if 'Self' in event[0]:
-                        await client.alarm(f'{elf.char_name} just looted a {event[1]}! Still warm from the corpse!')
-                    elif 'Guild' in event[0]:
-                        await client.alarm(f"{event[2]} just looted a {event[1]} for me! Leave it with the War Baron and he\'ll get it to me.")
+                    await client.alarm(f"{event[1]} just looted a {event[2]} for me! Leave it with the War Baron and he\'ll get it to me.")
 
         else:
             # check the heartbeat.  Has our tracker gone silent?
@@ -360,7 +345,6 @@ async def parse():
 intents = discord.Intents.default()
 intents.messages = True
 intents.message_content = True
-
 
 class myClient(commands.Bot):
     def __init__(self):
@@ -424,7 +408,7 @@ async def auto_start():
 
     # open the log file to be parsed
     # allow for testing, by forcing the bot to read an old log file for the VT and VD fights
-    if TEST_BOT == False:
+    if TEST_BOT is False:
         # start parsing.  The default behavior is to open the log file, and begin reading it from tne end, i.e. only new entries
         rv = elf.open(author)
     else:
@@ -452,4 +436,3 @@ async def auto_start():
 
 # let's go!!
 client.run(myconfig.BOT_TOKEN)
-
