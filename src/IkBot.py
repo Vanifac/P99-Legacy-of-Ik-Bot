@@ -5,7 +5,6 @@ import re
 import threading
 import time
 from datetime import datetime
-from typing import Self
 
 import discord
 import pygsheets
@@ -23,14 +22,35 @@ TEST_BOT = False
 CST = pytz.timezone('US/Central')
 
 # Google sheets integration
-gc = pygsheets.authorize(service_account_json=myconfig.GOOGLE_SHEETS_KEY)
-ikbot_sheet  = gc.open('IkBot')
+enable_google_sheet = False
+try:
+    gc = pygsheets.authorize(service_account_json=myconfig.GOOGLE_SHEETS_KEY)
+    ikbot_sheet  = gc.open('IkBot')
 
-roster_sheet = ikbot_sheet.worksheet_by_title('Roster')
-target_sheet = ikbot_sheet.worksheet_by_title('Targets')
-item_sheet   = ikbot_sheet.worksheet_by_title('Items')
-taunt_Sheet  = ikbot_sheet.worksheet_by_title('Taunts')
-trade_sheet  = ikbot_sheet.worksheet_by_title('Trade')
+    roster_sheet = ikbot_sheet.worksheet_by_title('Roster')
+    target_sheet = ikbot_sheet.worksheet_by_title('Targets')
+    item_sheet   = ikbot_sheet.worksheet_by_title('Items')
+    taunt_Sheet  = ikbot_sheet.worksheet_by_title('Taunts')
+    trade_sheet  = ikbot_sheet.worksheet_by_title('Trade')
+    enable_google_sheet = True
+except AttributeError as e:
+    print("Connecting to google sheet failed.\nError: ")
+    print(e)
+
+if enable_google_sheet:
+    target_list  = [cell[0] for cell in target_sheet.range('A2:A', returnas='matrix')]
+    item_list    = [cell[0] for cell in item_sheet.range('A2:A', returnas='matrix')]
+    trade_list   = [cell[0] for cell in trade_sheet.range('A2:A', returnas='matrix')]
+    roster_list  = [cell[0] for cell in roster_sheet.range('A2:A', returnas='matrix')]
+    taunt_death_list   = [cell[0] for cell in taunt_Sheet.range('B2:B', returnas='matrix')]
+    taunt_new_member_list   = [cell[0] for cell in taunt_Sheet.range('A2:A', returnas='matrix')]
+else:
+    target_list  = ["testSpider"]
+    item_list    = ["testSword"]
+    trade_list   = ["testCraft"]
+    roster_list  = ["testIksar"]
+    taunt_death_list = ["testFAILURE"]
+    taunt_new_member_list = ["testWelcome"]
 
 #################################################################################################
 
@@ -54,10 +74,7 @@ class EverquestLogFile:
         '^(\w)+ tells you, \'Attacking (.+) Master.\''
     ]
 
-    target_list  = [cell[0] for cell in target_sheet.range('A2:A', returnas='matrix')]
-    item_list    = [cell[0] for cell in item_sheet.range('A2:A', returnas='matrix')]
-    trade_list   = [cell[0] for cell in trade_sheet.range('A2:A', returnas='matrix')]
-    roster_list  = [cell[0] for cell in roster_sheet.range('A2:A', returnas='matrix')]
+
 
     # General Variables
     my_zone = 'Unknown'
@@ -303,13 +320,11 @@ async def parse():
 
                 # Self Death
                 elif 'SelfDeath' in event[0]:
-                    taunt_death = taunt_Sheet.range('B:B', returnas='matrix')
-                    await client.alarm(f'{elf.char_name} has fallen to {event[1]}! {random.choice(taunt_death)[0]}')
+                    await client.alarm(f'{elf.char_name} has fallen to {event[1]}! {random.choice(taunt_death_list)}')
 
                 # Roster Updates
                 elif 'New' in event[0]:
-                    taunt_new_member = taunt_Sheet.range('A:A', returnas='matrix')
-                    await client.alarm(f'Bahaha! {event[1]} has pledged their life to the Legacy! {random.choice(taunt_new_member)[0]}')
+                    await client.alarm(f'Bahaha! {event[1]} has pledged their life to the Legacy! {random.choice(taunt_new_member_list)}')
 
                 # Tradeskill Milestones
                 elif 'Trade' in event[0]:
@@ -347,15 +362,17 @@ intents.messages = True
 intents.message_content = True
 
 class myClient(commands.Bot):
+
     def __init__(self):
         commands.Bot.__init__(
             self, command_prefix=myconfig.BOT_COMMAND_PREFIX, intents=intents)
 
+    def create_logging_channel(self):
+        self.logging_channel = self.get_channel(myconfig.DISCORD_SERVER_CHANNELID)
+
     # sound the alarm
     async def alarm(self, msg):
-        logging_channel = client.get_channel(myconfig.DISCORD_SERVER_CHANNELID)
-        await logging_channel.send(msg)
-
+        await self.logging_channel.send(msg)
         print(f'Alarm:{msg}')
 
 
@@ -377,6 +394,7 @@ async def on_ready():
 
     print(f'Logged on as {client.user}!')
     print(f'App ID: {client.user.id}')
+    client.create_logging_channel()
 
     await auto_start()
 
