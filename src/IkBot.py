@@ -1,11 +1,11 @@
 import asyncio
+import copy
 import os
 import random
 import re
 import threading
 import time
 from datetime import datetime
-from typing import Self
 
 import discord
 import pygsheets
@@ -27,10 +27,12 @@ gc = pygsheets.authorize(service_account_json=myconfig.GOOGLE_SHEETS_KEY)
 ikbot_sheet  = gc.open('IkBot')
 
 roster_sheet = ikbot_sheet.worksheet_by_title('Roster')
+#roster_sheet = ikbot_sheet.worksheet_by_title('IkBot Testing Roster')
 target_sheet = ikbot_sheet.worksheet_by_title('Targets')
 item_sheet   = ikbot_sheet.worksheet_by_title('Items')
 taunt_Sheet  = ikbot_sheet.worksheet_by_title('Taunts')
 trade_sheet  = ikbot_sheet.worksheet_by_title('Trade')
+quest_sheet  = ikbot_sheet.worksheet_by_title('Quests')
 
 #################################################################################################
 
@@ -45,20 +47,25 @@ class EverquestLogFile:
         '^(.+) (have|has) slain',
         '^Players (on|in) EverQuest:',
         '^(.+)<Legacy of Ik>',
-        '^There (is|are) . (player|players) in',
+        '^There (is|are) (\d)+ (player|players) in',
         '^You have entered (?!an Arena)',
         '^--(\w)+ (have|has) looted a',
         '^You have gained a level! Welcome to level ',
         '^You have become better at (.+)!',
-        # '^You have become better at (.+)! \((1|2)(5|0)0\)',
-        '^(\w)+ tells you, \'Attacking (.+) Master.\''
+        '^(\w)+ tells you, \'Attacking (.+) Master.\'',
+        '^(\w)+ -> (\w)+: IkBot-(Quest|Claim|Thrall)'
     ]
-
+    
+    
+    roster_dict  = roster_sheet.get_all_records()
+    new_roster_dict = copy.deepcopy(roster_dict)
+    roster_names  = [member['Name'] for member in new_roster_dict]
+    
     target_list  = [cell[0] for cell in target_sheet.range('A2:A', returnas='matrix')]
     item_list    = [cell[0] for cell in item_sheet.range('A2:A', returnas='matrix')]
     trade_list   = [cell[0] for cell in trade_sheet.range('A2:A', returnas='matrix')]
-    roster_list  = [cell[0] for cell in roster_sheet.range('A2:A', returnas='matrix')]
-
+    quest_list   = [cell[0] for cell in quest_sheet.range('A2:A', returnas='matrix')]
+    
     # General Variables
     my_zone = 'Unknown'
     my_level ='1'
@@ -160,6 +167,7 @@ class EverquestLogFile:
         # walk thru the target list and trigger list and see if we have any match
         for trigger in self.trigger_list:
             if re.match(trigger, trunc_line):
+                print('MATCH')
                 # DEATH
                 if 'You have been slain' in trunc_line:
                     mob = trunc_line.index('by ')+3, trunc_line.index("\n")
@@ -167,13 +175,20 @@ class EverquestLogFile:
 
                 #Roster Updates
                 elif re.match('^Players (on|in) EverQuest:', trunc_line):
-                    elf.roster_list = [cell[0] for cell in roster_sheet.range('A:A', returnas='matrix')]
+                    self.roster_dict = roster_sheet.get_all_records()
+                    self.new_roster_dict = copy.deepcopy(elf.roster_dict)
+                    self.roster_names  = [member['Name'] for member in self.new_roster_dict]
                     return None
+
                 elif '<Legacy of Ik>' in trunc_line:
-                    char = self.parse_who_string(trunc_line)
-                    return self.update_roster(char)
-                # elif re.match('^There (is|are) . (player|players) in', trunc_line):
-                    # roster_Sheet.sort_range('A2', 'K100', basecolumnindex=5, sortorder='DESCENDING')
+                    return self.update_roster(trunc_line)
+
+                elif re.match('^There (is|are) (\d)+ (player|players) in', trunc_line):
+                    if self.roster_dict != self.new_roster_dict:
+                        print('updating roster sheet')
+                        new_roster_list = [list(entry.values()) for entry in self.new_roster_dict]
+                        roster_sheet.update_values('A2', new_roster_list)
+                    return None
 
                 # Level Parsing
                 elif 'You have gained a level! Welcome to level' in trunc_line:
@@ -200,7 +215,7 @@ class EverquestLogFile:
                                  if elf.my_pet in trunc_line and target in trunc_line]:
                         return event[0]
                     if event := [['Kill', member, target]
-                                 for member in self.roster_list for target in self.target_list
+                                 for member in self.roster_names for target in self.target_list
                                  if member in trunc_line and target in trunc_line]:
                         return event[0]
 
@@ -211,7 +226,7 @@ class EverquestLogFile:
                         return event[0]
                 elif 'has looted a' in trunc_line:
                     if event := [['Loot', member, item]
-                                 for member in self.roster_list for item in self.item_list
+                                 for member in self.roster_names for item in self.item_list
                                  if member in trunc_line and item in trunc_line]:
                         return event[0]
 
@@ -221,51 +236,65 @@ class EverquestLogFile:
                     for trade in self.trade_list:
                         if trade in trunc_line and skill > 24:
                             if not self.tradeskills_dict:
-                                print('nodict')
                                 self.tradeskills_string = roster_sheet.cell((roster_sheet.find(self.char_name)[0].row, roster_sheet.find('Tradeskills')[0].col)).value
                                 if self.tradeskills_string:
-                                    print('Building dict from string')
                                     self.tradeskills_dict = {x.strip(): y.strip() for x, y in (element.split(' ') for element in self.tradeskills_string.split(' / '))}
                             self.tradeskills_dict.update({trade: f'({skill})'})
-                            if skill % 50 == 0:
+                            if (skill % 50 == 0) or (skill > 124 and skill % 25 == 0):
                                 event = 'Trade', trade, skill
+
+                # IkBot Commands
+                elif re.match('^(\w)+ -> (\w)+: ikbot-(quest|claim)-', trunc_line.lower()):
+                    return self.parse_ikbot_command(trunc_line)
 
         # only executes if loops did not return already
         return event
 
-    # Build character roster entry
-    def parse_who_string(self, whoStr):
-        ind = whoStr.index('] '), whoStr.index(' ('), whoStr.index(' ')
-        char = [whoStr[ind[0]+2:ind[1]], whoStr[ind[2]+1:ind[0]], whoStr[1:ind[2]], '', datetime.now(CST).strftime("%m/%d/%Y")]
-        if zone_update := 'ZONE:' in whoStr:
-            z_ind = whoStr.index(': ')+2, whoStr.index("\n")-2
-            char[3] = whoStr[z_ind[0]:z_ind[1]]
-        else:
-            char[3] = self.my_zone
+    # Build / update roster entry
+    def update_roster(self, who_str):
+        who_str = who_str.strip('AFK ')
+        ind = who_str.index('] '), who_str.index(' ('), who_str.index(' ')
+        name = who_str[ind[0]+2:ind[1]]
+        zone = copy.copy(self.my_zone)
+        if zone_update := 'ZONE:' in who_str:
+            zone = who_str[who_str.index(': ')+2:who_str.index("\n")-2]
 
-        if char[0] == self.char_name:
-            self.my_level = char[2]
+        # Check if member is on the roster
+        if member := next((item for item in self.new_roster_dict if item['Name'] == name), {}):
+            member.update({'Level': int(who_str[1:ind[2]]), 'Zone': zone,
+                           'Last Seen': datetime.now(CST).strftime("%m/%d/%Y %H:00")})
+        # If member is not on the roster
+        else:
+            member = dict.fromkeys(self.new_roster_dict[0])
+            member.update({'Name': name, 'Class': who_str[ind[2]+1:ind[0]],
+                           'Level': int(who_str [1:ind[2]]), 'Zone': zone,
+                           'Last Seen': datetime.now(CST).strftime("%m/%d/%Y %H:00"),
+                           'Joined': datetime.now(CST).strftime("%m/%d/%Y")})
+            self.new_roster_dict.append(member)
+            return 'NewMember', member['Name']
+
+        # Do things if this is me
+        if name == self.char_name:
+            self.my_level = copy.copy(member['Level'])
+            member.update({'Last used IkBot': datetime.now(CST).strftime("%m/%d/%Y")})
             if zone_update:
-                self.my_zone = char[3]
+                self.my_zone = copy.deepcopy(zone)
             if self.tradeskills_dict:
-                char.append(' / '.join(' '.join((key, val)) for (key, val) in self.tradeskills_dict.items()))
-        return char
+                member.update({'Tradeskills': ' / '.join(' '.join((key, val)) for (key, val) in self.tradeskills_dict.items())})
+        return None
 
-    # Update the Roster
-    def update_roster(self, char):
-        if char[0] in self.roster_list:
-            # Update existing member
-            cell = roster_sheet.find(char[0])
-            roster_sheet.update_row(cell[0].row, char[2:], col_offset=2)
-            event = 'Update', char[0]
-        else:
-            # Add new member
-            roster_sheet.append_table(values=char)
-            self.roster_list = [cell[0] for cell in roster_sheet.range('A:A', returnas='matrix')]
-            event = 'New', char[0]
-        return event
-
-
+    def parse_ikbot_command(self, command):
+        print('ikbot command found')
+        command = [word.strip() for word in command.lower().split('-')]
+        if command[2] == 'quest':
+            print(command)
+            if event := [['Quest', member, item]
+                        for member in self.roster_names for item in self.quest_list
+                        if member.lower() in command[0] and item.lower() in command[3]]:
+                print(event)
+                return event[0]
+            
+            
 # create the global instance of the log file class
 elf = EverquestLogFile()
 
@@ -278,9 +307,9 @@ elf = EverquestLogFile()
 
 
 async def parse():
-    
-    print('Parsing Started')
-    print('Make sure to turn on logging in EQ with /log command!')
+    print('Parsing Started - Make sure to turn on logging in EQ with /log command!')
+    print('FOR IK!')
+    print('-'*40)
 
     # process the log file lines here
     while elf.is_parsing() == True:
@@ -294,9 +323,10 @@ async def parse():
 
             # does it match a trigger?
             if event := elf.regex_match(line):
-                time.sleep(.5)
+                #time.sleep(.5)
                 #print(event)
                 # Discord Bot Triggers
+                
                 # Level Up
                 if 'LevelUp' in event[0]:
                     await client.alarm(f'{event[1]} has reached level {event[2]}! Now get back to work!')
@@ -307,7 +337,7 @@ async def parse():
                     await client.alarm(f'{elf.char_name} has fallen to {event[1]}! {random.choice(taunt_death)[0]}')
 
                 # Roster Updates
-                elif 'New' in event[0]:
+                elif 'NewMember' in event[0]:
                     taunt_new_member = taunt_Sheet.range('A:A', returnas='matrix')
                     await client.alarm(f'Bahaha! {event[1]} has pledged their life to the Legacy! {random.choice(taunt_new_member)[0]}')
 
@@ -318,11 +348,24 @@ async def parse():
 
                 # Notable Kills
                 elif 'Kill' in event[0]:
-                    await client.alarm(f'{event[1]} just killed {event[2]}! **FOR IK!** Any good loot?')
+                    to_send = f'{event[1]} just killed {event[2]}! **FOR IK!** Any good loot?'
+                    time.sleep(random.randint(0,10))
+                    if to_send != client.content:
+                        await client.alarm(to_send)
 
                 # Notable Loot
                 elif 'Loot' in event[0]:
-                    await client.alarm(f"{event[1]} just looted a {event[2]} for me! Leave it with the War Baron and he\'ll get it to me.")
+                    to_send = f"{event[1]} just looted the {event[2]} for me! Leave it with the War Baron and he'll get it to me."
+                    time.sleep(random.randint(0,10))
+                    if to_send != client.content:
+                        await client.alarm(to_send)
+
+                # IkBot Item
+                elif 'Quest' in event[0]:
+                    to_send = f"{event[1]} just recieved the {event[2]} as reward for their wonderfully evil deeds, the Empire grows stronger!!"
+                    time.sleep(random.randint(0,10))
+                    if to_send != client.content:
+                        await client.alarm(to_send)
 
         else:
             # check the heartbeat.  Has our tracker gone silent?
@@ -348,12 +391,14 @@ intents.message_content = True
 
 class myClient(commands.Bot):
     def __init__(self):
+        self.content = ''
         commands.Bot.__init__(
             self, command_prefix=myconfig.BOT_COMMAND_PREFIX, intents=intents)
 
     # sound the alarm
     async def alarm(self, msg):
         logging_channel = client.get_channel(myconfig.DISCORD_SERVER_CHANNELID)
+        print(client.content)
         await logging_channel.send(msg)
 
         print(f'Alarm:{msg}')
@@ -374,7 +419,6 @@ client = myClient()
 async def on_ready():
     print('FOR IK!')
     print(f'Discord.py version: {discord.__version__}')
-
     print(f'Logged on as {client.user}!')
     print(f'App ID: {client.user.id}')
 
@@ -386,10 +430,11 @@ async def on_ready():
 @client.event
 async def on_message(message):
     author = message.author
-    content = message.content
+    client.content = message.content
     channel = message.channel
+    print(client.content)
     print(
-        f'Content received: [{content}] from [{author}] in channel [{channel}]')
+        f'Content received: [{client.content}] from [{author}] in channel [{channel}]')
     await client.process_commands(message)
 
 
@@ -436,3 +481,4 @@ async def auto_start():
 
 # let's go!!
 client.run(myconfig.BOT_TOKEN)
+
