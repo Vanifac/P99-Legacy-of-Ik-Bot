@@ -10,6 +10,7 @@ __pycache__/
 .Python
 build/
 develop-eggs/
+dist/
 downloads/
 eggs/
 .eggs/
@@ -131,3 +132,7 @@ dmypy.json
 
 config.ini
 test.py
+/.vscode
+src/myconfig.py
+src/myconfig.py
+tests/Logs/eqlog_Test_P1999Green.txt
