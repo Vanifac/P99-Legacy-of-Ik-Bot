@@ -23,7 +23,7 @@ TEST_BOT = False
 CST = pytz.timezone('US/Central')
 
 # Google sheets integration
-enable_google_sheet = False
+ENABLE_GOOGLE_SHEET = False
 try:
     gc = pygsheets.authorize(service_account_json=myconfig.GOOGLE_SHEETS_KEY)
     ikbot_sheet  = gc.open('IkBot')
@@ -35,22 +35,19 @@ try:
     taunt_Sheet  = ikbot_sheet.worksheet_by_title('Taunts')
     trade_sheet  = ikbot_sheet.worksheet_by_title('Trade')
     quest_sheet  = ikbot_sheet.worksheet_by_title('Quests')
-    enable_google_sheet = True
+    ENABLE_GOOGLE_SHEET = True
 except AttributeError as e:
     print("Connecting to google sheet failed.\nError: ")
     print(e)
 
-if enable_google_sheet:
-    target_list  = [cell[0] for cell in target_sheet.range('A2:A', returnas='matrix')]
-    item_list    = [cell[0] for cell in item_sheet.range('A2:A', returnas='matrix')]
-    trade_list   = [cell[0] for cell in trade_sheet.range('A2:A', returnas='matrix')]
-    roster_list  = [cell[0] for cell in roster_sheet.range('A2:A', returnas='matrix')]
-    taunt_death_list   = [cell[0] for cell in taunt_Sheet.range('B2:B', returnas='matrix')]
+if ENABLE_GOOGLE_SHEET:
+    target_list             = [cell[0] for cell in target_sheet.range('A2:A', returnas='matrix')]
+    item_list               = [cell[0] for cell in item_sheet.range('A2:A', returnas='matrix')]
+    trade_list              = [cell[0] for cell in trade_sheet.range('A2:A', returnas='matrix')]
+    roster_list             = [cell[0] for cell in roster_sheet.range('A2:A', returnas='matrix')]
+    quest_list              = [cell[0] for cell in quest_sheet.range('A2:A', returnas='matrix')]
+    taunt_death_list        = [cell[0] for cell in taunt_Sheet.range('B2:B', returnas='matrix')]
     taunt_new_member_list   = [cell[0] for cell in taunt_Sheet.range('A2:A', returnas='matrix')]
-    
-    roster_dict  = roster_sheet.get_all_records()
-    new_roster_dict = copy.deepcopy(roster_dict)
-    roster_names  = [member['Name'] for member in new_roster_dict]
     
 else:
     target_list  = ["testSpider"]
@@ -82,13 +79,18 @@ class EverquestLogFile:
         '^(\w)+ tells you, \'Attacking (.+) Master.\'',
         '^(\w)+ -> (\w)+: IkBot-(Quest|Claim|Thrall)'
     ]
-    
+
     # General Variables
     my_zone = 'Unknown'
     my_level ='1'
     my_pet = 'Unknown'
     tradeskills_dict = {}
     tradeskills_string = ''
+
+    if ENABLE_GOOGLE_SHEET:
+        roster_dict     = roster_sheet.get_all_records()
+        new_roster_dict = copy.deepcopy(roster_dict)
+        roster_name_list    = [member['Name'] for member in new_roster_dict]
 
     #
     # ctor
@@ -184,7 +186,7 @@ class EverquestLogFile:
         # walk thru the target list and trigger list and see if we have any match
         for trigger in self.trigger_list:
             if re.match(trigger, trunc_line):
-                print('MATCH')
+                #print('MATCH')
                 # DEATH
                 if 'You have been slain' in trunc_line:
                     mob = trunc_line.index('by ')+3, trunc_line.index("\n")
@@ -193,8 +195,8 @@ class EverquestLogFile:
                 #Roster Updates
                 elif re.match('^Players (on|in) EverQuest:', trunc_line):
                     self.roster_dict = roster_sheet.get_all_records()
+                    self.roster_name_list  = [member['Name'] for member in self.roster_dict]
                     self.new_roster_dict = copy.deepcopy(elf.roster_dict)
-                    self.roster_names  = [member['Name'] for member in self.new_roster_dict]
                     return None
 
                 elif '<Legacy of Ik>' in trunc_line:
@@ -203,6 +205,7 @@ class EverquestLogFile:
                 elif re.match('^There (is|are) (\d)+ (player|players) in', trunc_line):
                     if self.roster_dict != self.new_roster_dict:
                         print('updating roster sheet')
+                        self.roster_name_list  = [member['Name'] for member in self.new_roster_dict]
                         new_roster_list = [list(entry.values()) for entry in self.new_roster_dict]
                         roster_sheet.update_values('A2', new_roster_list)
                     return None
@@ -224,33 +227,33 @@ class EverquestLogFile:
                 # Kill Parsing Self / Pet / Ik Member
                 elif 'You have slain ' in trunc_line:
                     if event := [['Kill', elf.char_name, target]
-                                 for target in self.target_list if target in trunc_line]:
+                                 for target in target_list if target in trunc_line]:
                         return event[0]
                 elif ' has been slain by ' in trunc_line:
                     if event := [['Kill', elf.char_name, target]
-                                 for target in self.target_list
+                                 for target in target_list
                                  if elf.my_pet in trunc_line and target in trunc_line]:
                         return event[0]
                     if event := [['Kill', member, target]
-                                 for member in self.roster_names for target in self.target_list
+                                 for member in self.roster_name_list for target in target_list
                                  if member in trunc_line and target in trunc_line]:
                         return event[0]
 
                 # Loot Parsing
                 elif 'You have looted a' in trunc_line:
                     if event := [['Loot', elf.char_name, item]
-                                 for item in self.item_list if item in trunc_line]:
+                                 for item in item_list if item in trunc_line]:
                         return event[0]
                 elif 'has looted a' in trunc_line:
                     if event := [['Loot', member, item]
-                                 for member in self.roster_names for item in self.item_list
+                                 for member in self.roster_name_list for item in item_list
                                  if member in trunc_line and item in trunc_line]:
                         return event[0]
 
                 # Tradeskills
                 elif 'You have become better at ' in trunc_line:
                     skill = int(trunc_line[-5:trunc_line.index(")")].strip('( '))
-                    for trade in self.trade_list:
+                    for trade in trade_list:
                         if trade in trunc_line and skill > 24:
                             if not self.tradeskills_dict:
                                 self.tradeskills_string = roster_sheet.cell((roster_sheet.find(self.char_name)[0].row, roster_sheet.find('Tradeskills')[0].col)).value
@@ -258,7 +261,7 @@ class EverquestLogFile:
                                     self.tradeskills_dict = {x.strip(): y.strip() for x, y in (element.split(' ') for element in self.tradeskills_string.split(' / '))}
                             self.tradeskills_dict.update({trade: f'({skill})'})
                             if (skill % 50 == 0) or (skill > 124 and skill % 25 == 0):
-                                event = 'Trade', trade, skill
+                                return 'Trade', trade, skill
 
                 # IkBot Commands
                 elif re.match('^(\w)+ -> (\w)+: ikbot-(quest|claim)-', trunc_line.lower()):
@@ -306,7 +309,7 @@ class EverquestLogFile:
         if command[2] == 'quest':
             print(command)
             if event := [['Quest', member, item]
-                        for member in self.roster_names for item in self.quest_list
+                        for member in self.roster_name_list for item in quest_list
                         if member.lower() in command[0] and item.lower() in command[3]]:
                 print(event)
                 return event[0]
@@ -358,7 +361,7 @@ async def parse():
 
                 # Tradeskill Milestones
                 elif 'Trade' in event[0]:
-                    quip_loc = f'B{str(elf.trade_list.index(event[1]) + 1)}'
+                    quip_loc = f'B{str(trade_list.index(event[1]) + 1)}'
                     await client.alarm(f'{event[2]} {event[1]}! Pretty impressive {elf.char_name}. {trade_sheet.get_value(quip_loc)}')
 
                 # Notable Kills
