@@ -6,7 +6,7 @@ v2021.0.1 was developed by [LevelUpLarry](https://www.leveluplarry.com) himself 
 
 v2021.0.2 was developed by [Thomas Silloway](https://github.com/ThomasSilloway) 
 
-v2023.0.1 was developed by [Vanifac](https://github.com/Vanifac) 
+v2023.0.x was developed by [Vanifac](https://github.com/Vanifac) with contributions from [Billiard117](https://github.com/Billiard117)
 
 Special Thanks:
  - Grondarr
