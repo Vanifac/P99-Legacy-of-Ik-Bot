@@ -21,6 +21,7 @@ Connect with us in [LevelUpLarry's discord](https://discord.gg/SgKrGnM) in the `
     - Kills a target mob
     - Loots a target Item
     - Sees a new Legacy of Ik Guild Member
+- IkBot-Quest-Item commands for quest reward parsing.
 - Random "in character" lines from The Emperor for different events
 - Updates Legacy of Ik Roster via /who commands
 
