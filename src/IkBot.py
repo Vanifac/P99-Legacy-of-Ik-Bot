@@ -385,7 +385,7 @@ async def parse():
 
                 # IkBot Item
                 elif 'Quest' in event[0]:
-                    to_send = f"{event[1]} just recieved the {event[2]} as reward for their wonderfully evil deeds, the Empire grows stronger!!"
+                    to_send = f"{event[1]} just received the {event[2]} as reward for their wonderfully evil deeds, the Empire grows stronger!!"
                     time.sleep(random.randint(0,10))
                     if to_send != client.content:
                         await client.alarm(to_send)
