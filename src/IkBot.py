@@ -77,7 +77,8 @@ class EverquestLogFile:
         '^You have gained a level! Welcome to level ',
         '^You have become better at (.+)!',
         '^(\w)+ tells you, \'Attacking (.+) Master.\'',
-        '^(\w)+ -> (\w)+: IkBot-(Quest|Claim|Thrall)'
+        '^(\w)+ -> (\w)+: IkBot-(Quest|Claim|Thrall)',
+        "^(\w)+ (tells|told) (\w)+, 'IkBot-(Quest|Claim|Thrall)"
     ]
 
     # General Variables
@@ -88,8 +89,8 @@ class EverquestLogFile:
     tradeskills_string = ''
 
     if ENABLE_GOOGLE_SHEET:
-        roster_dict     = roster_sheet.get_all_records()
-        new_roster_dict = copy.deepcopy(roster_dict)
+        roster_dict         = roster_sheet.get_all_records()
+        new_roster_dict     = copy.deepcopy(roster_dict)
         roster_name_list    = [member['Name'] for member in new_roster_dict]
 
     #
@@ -264,7 +265,7 @@ class EverquestLogFile:
                                 return 'Trade', trade, skill
 
                 # IkBot Commands
-                elif re.match('^(\w)+ -> (\w)+: ikbot-(quest|claim)-', trunc_line.lower()):
+                elif re.match('^(.+)ikbot-quest-', trunc_line.lower()):
                     return self.parse_ikbot_command(trunc_line)
 
         # only executes if loops did not return already
@@ -304,15 +305,19 @@ class EverquestLogFile:
         return None
 
     def parse_ikbot_command(self, command):
-        print('ikbot command found')
-        command = [word.strip() for word in command.lower().split('-')]
+        command = [word.strip(" '") for word in command.lower().split('-')]
+        if 'you told ' in command[0]:
+            command[0] = self.char_name.lower()
+            command.insert(1, 'ikbot')
+        elif ' tells you' in command[0]:
+            command[0] = command[0].split(' ')[0]
+            command.insert(1, 'ikbot')
         if command[2] == 'quest':
-            print(command)
             if event := [['Quest', member, item]
                         for member in self.roster_name_list for item in quest_list
                         if member.lower() in command[0] and item.lower() in command[3]]:
-                print(event)
                 return event[0]
+
             
             
 # create the global instance of the log file class
