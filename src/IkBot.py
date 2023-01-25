@@ -20,6 +20,7 @@ TEST_BOT = False
 # TEST_BOT                = True
 
 # Set Variables
+IkBot_Ver = 'v2023.0.3'
 CST = pytz.timezone('US/Central')
 
 # Google sheets integration
@@ -279,7 +280,7 @@ class EverquestLogFile:
         zone = copy.copy(self.my_zone)
         if zone_update := 'ZONE:' in who_str:
             zone = who_str[who_str.index(': ')+2:who_str.index("\n")-2]
-
+            zone = zone.strip(' L')
         # Check if member is on the roster
         if member := next((item for item in self.new_roster_dict if item['Name'] == name), {}):
             member.update({'Level': int(who_str[1:ind[2]]), 'Zone': zone,
@@ -297,7 +298,7 @@ class EverquestLogFile:
         # Do things if this is me
         if name == self.char_name:
             self.my_level = copy.copy(member['Level'])
-            member.update({'Last used IkBot': datetime.now(CST).strftime("%m/%d/%Y")})
+            member.update({'Last used IkBot': datetime.now(CST).strftime("%m/%d/%Y"), 'IkBot Version': IkBot_Ver})
             if zone_update:
                 self.my_zone = copy.deepcopy(zone)
             if self.tradeskills_dict:
@@ -372,21 +373,24 @@ async def parse():
                 # Notable Kills
                 elif 'Kill' in event[0]:
                     to_send = f'{event[1]} just killed {event[2]}! **FOR IK!** Any good loot?'
-                    time.sleep(random.randint(0,10))
+                    if event[1] != elf.char_name:
+                        await asyncio.sleep(random.randint(1,11))
                     if to_send != client.content:
                         await client.alarm(to_send)
 
                 # Notable Loot
                 elif 'Loot' in event[0]:
                     to_send = f"{event[1]} just looted the {event[2]} for me! Leave it with the War Baron and he'll get it to me."
-                    time.sleep(random.randint(0,10))
+                    if event[1] != elf.char_name:
+                        await asyncio.sleep(random.randint(1,11))
                     if to_send != client.content:
                         await client.alarm(to_send)
 
                 # IkBot Item
                 elif 'Quest' in event[0]:
                     to_send = f"{event[1]} just received the {event[2]} as reward for their wonderfully evil deeds, the Empire grows stronger!!"
-                    time.sleep(random.randint(0,10))
+                    if event[1] != elf.char_name:
+                        await asyncio.sleep(random.randint(1,11))
                     if to_send != client.content:
                         await client.alarm(to_send)
 
@@ -458,9 +462,9 @@ async def on_message(message):
     author = message.author
     client.content = message.content
     channel = message.channel
-    print(client.content)
-    print(
-        f'Content received: [{client.content}] from [{author}] in channel [{channel}]')
+    #print(client.content)
+    #print(
+    #    f'Content received: [{client.content}] from [{author}] in channel [{channel}]')
     await client.process_commands(message)
 
 
