@@ -5,6 +5,7 @@ import random
 import re
 import threading
 import time
+import WikiScraper
 from datetime import datetime
 
 import discord
@@ -54,7 +55,7 @@ if ENABLE_GOOGLE_SHEET:
     
 else:
     target_list  = ["testSpider"]
-    item_list    = ["testSword"]
+    item_list    = ["Iksar Berserker Club"]
     trade_list   = ["testCraft"]
     roster_list  = ["testIksar"]
     taunt_death_list = ["testFAILURE"]
@@ -322,11 +323,19 @@ class EverquestLogFile:
                         for member in self.roster_name_list for item in quest_list
                         if member.lower() in command[0] and item.lower() in command[3]]:
                 return event[0]
+    
+    # create (guess) the link to the item on the wiki
+    def link_to_Wiki(self, itemName):
+        wiki_url_prefix = "https://wiki.project1999.com/"
+        wiki_url_item_guess = itemName.replace(" ", "_")
+        return wiki_url_prefix + wiki_url_item_guess
 
             
             
 # create the global instance of the log file class
 elf = EverquestLogFile()
+# create the global instance of the web scraping class
+scraper = WikiScraper.WikiScraper()
 
 #################################################################################################
 
@@ -383,11 +392,21 @@ async def parse():
 
                 # Notable Loot
                 elif 'Loot' in event[0]:
+                    wiki_link = elf.link_to_Wiki(event[2])
+                    embed = None
+                    try:
+                        embed = discord.Embed(
+                        title=event[2],
+                        url=wiki_link,
+                        description=scraper.scrape_wikipage_item(wiki_link))
+                    except: 
+                        print("failed to parse " + wiki_link)
                     to_send = f"{event[1]} just looted the {event[2]} for me! Leave it with the War Baron and he'll get it to me."
                     if event[1] != elf.char_name:
-                        await asyncio.sleep(random.randint(1,16))
-                    if to_send != client.last_sent:
-                        await client.alarm(to_send)
+                        await asyncio.sleep(random.randint(1,11))
+                    if to_send != client.content:
+                        await client.alarm(to_send, embed)
+
 
                 # IkBot Item
                 elif 'Quest' in event[0]:
@@ -431,9 +450,11 @@ class myClient(commands.Bot):
         self.logging_channel = self.get_channel(myconfig.DISCORD_SERVER_CHANNELID)
 
     # sound the alarm
-    async def alarm(self, msg):
-        await self.logging_channel.send(msg)
-        #print(f'Alarm:{msg}')
+    async def alarm(self, msg, embd=None):
+        await self.logging_channel.send(msg, embed=embd)
+
+        print(f'Alarm:{msg}')
+
 
 
 # create the global instance of the client that manages communication to the discord bot
