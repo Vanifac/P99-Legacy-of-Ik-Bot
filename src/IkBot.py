@@ -403,18 +403,26 @@ async def parse():
                         print("failed to parse " + wiki_link)
                     to_send = f"{event[1]} just looted the {event[2]} for me! Leave it with the War Baron and he'll get it to me."
                     if event[1] != elf.char_name:
-                        await asyncio.sleep(random.randint(1,11))
+                        await asyncio.sleep(random.randint(1,16))
                     if to_send != client.content:
                         await client.alarm(to_send, embed)
 
-
                 # IkBot Item
                 elif 'Quest' in event[0]:
+                    wiki_link = elf.link_to_Wiki(event[2])
+                    embed = None
+                    try:
+                        embed = discord.Embed(
+                        title=event[2],
+                        url=wiki_link,
+                        description=scraper.scrape_wikipage_item(wiki_link))
+                    except: 
+                        print("failed to parse " + wiki_link)
                     to_send = f"{event[1]} just received the {event[2]} as reward for their wonderfully evil deeds, the Empire grows stronger!!"
                     if event[1] != elf.char_name:
-                        await asyncio.sleep(random.randint(1,16))
+                        await asyncio.sleep(1)
                     if to_send != client.last_sent:
-                        await client.alarm(to_send)
+                        await client.alarm(to_send, embed)
 
         else:
             # check the heartbeat.  Has our tracker gone silent?
