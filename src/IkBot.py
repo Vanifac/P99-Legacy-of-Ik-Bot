@@ -22,6 +22,8 @@ TEST_BOT = False
 
 # Set Variables
 IkBot_Ver = 'v2023.0.3'
+IkBot_Rel = f'https://github.com/Vanifac/P99-Legacy-of-Ik-Bot/releases/tag/{IkBot_Ver}'
+
 CST = pytz.timezone('US/Central')
 
 # Google sheets integration
@@ -207,7 +209,7 @@ class EverquestLogFile:
 
                 elif re.match('^There (is|are) (\d)+ (player|players) in', trunc_line):
                     if self.roster_dict != self.new_roster_dict:
-                        print('updating roster sheet')
+                        print('Updating Roster..')
                         self.roster_name_list  = [member['Name'] for member in self.new_roster_dict]
                         new_roster_list = [list(entry.values()) for entry in self.new_roster_dict]
                         roster_sheet.update_values('A2', new_roster_list)
@@ -275,13 +277,15 @@ class EverquestLogFile:
 
     # Build / update roster entry
     def update_roster(self, who_str):
+        if '[ANONYMOUS]' in who_str: return None
         who_str = who_str.strip('AFK ')
         ind = who_str.index('] '), who_str.index(' ('), who_str.index(' ')
         name = who_str[ind[0]+2:ind[1]]
         zone = copy.copy(self.my_zone)
+        
         if zone_update := 'ZONE:' in who_str:
-            zone = who_str[who_str.index(': ')+2:who_str.index("\n")-2]
-            zone = zone.strip(' L')
+            zone = (who_str[who_str.index(': ')+2:who_str.index("\n")-2]).strip(' L')
+            
         # Check if member is on the roster
         if member := next((item for item in self.new_roster_dict if item['Name'] == name), {}):
             member.update({'Level': int(who_str[1:ind[2]]), 'Zone': zone,
@@ -342,8 +346,7 @@ scraper = WikiScraper.WikiScraper()
 
 
 async def parse():
-    print('Parsing Started - Make sure to turn on logging in EQ with /log command!')
-    print('FOR IK!')
+    print('Parsing Started - Make sure to turn on logging in EQ with /log command. FOR IK!')
     print('-'*40)
 
     # process the log file lines here
@@ -383,8 +386,8 @@ async def parse():
                 elif 'Kill' in event[0]:
                     to_send = f'{event[1]} just killed {event[2]}! **FOR IK!** Any good loot?'
                     if event[1] != elf.char_name:
-                        await asyncio.sleep(random.randint(1,11))
-                    if to_send != client.content:
+                        await asyncio.sleep(random.randint(1,16))
+                    if to_send != client.last_sent:
                         await client.alarm(to_send)
 
                 # Notable Loot
@@ -404,12 +407,13 @@ async def parse():
                     if to_send != client.content:
                         await client.alarm(to_send, embed)
 
+
                 # IkBot Item
                 elif 'Quest' in event[0]:
                     to_send = f"{event[1]} just received the {event[2]} as reward for their wonderfully evil deeds, the Empire grows stronger!!"
                     if event[1] != elf.char_name:
-                        await asyncio.sleep(random.randint(1,11))
-                    if to_send != client.content:
+                        await asyncio.sleep(random.randint(1,16))
+                    if to_send != client.last_sent:
                         await client.alarm(to_send)
 
         else:
@@ -438,9 +442,10 @@ class myClient(commands.Bot):
 
     def __init__(self):
         self.content = ''
+        self.last_sent = ''
         commands.Bot.__init__(
             self, command_prefix=myconfig.BOT_COMMAND_PREFIX, intents=intents)
-
+    
     def create_logging_channel(self):
         self.logging_channel = self.get_channel(myconfig.DISCORD_SERVER_CHANNELID)
 
@@ -449,6 +454,7 @@ class myClient(commands.Bot):
         await self.logging_channel.send(msg, embed=embd)
 
         print(f'Alarm:{msg}')
+
 
 
 # create the global instance of the client that manages communication to the discord bot
@@ -464,7 +470,7 @@ client = myClient()
 # on_ready
 @client.event
 async def on_ready():
-    print('FOR IK!')
+    print(f'IkBot Version: {IkBot_Ver}')
     print(f'Discord.py version: {discord.__version__}')
     print(f'Logged on as {client.user}!')
     print(f'App ID: {client.user.id}')
@@ -472,22 +478,55 @@ async def on_ready():
 
     await auto_start()
 
-
 # on_message - catches everything, messages and commands
 # note the final line, which ensures any command gets processed as a command, and not just absorbed here as a message
 @client.event
 async def on_message(message):
     author = message.author
     client.content = message.content
-    channel = message.channel
-    #print(client.content)
+    #channel = message.channel
+    if author == client.user:
+        client.last_sent = message.content
     #print(
     #    f'Content received: [{client.content}] from [{author}] in channel [{channel}]')
-    await client.process_commands(message)
+    if myconfig.DISCORD_SERVER_CHANNELID == message.channel.id:
+        await client.process_commands(message)
 
+# Discord !commands
+#Who command
+@client.command()
+async def who(message):
+    if ENABLE_GOOGLE_SHEET:
+        print('---Processing !who command.')
+        # Get Updated list of members online in this hour
+        who_list  = [member for member in roster_sheet.get_all_records()
+                     if member['Last Seen'] == datetime.now(CST).strftime("%m/%d/%Y %H:00")]
+        # Building /who message list
+        who_msg_list = ["Lets see who's out there taking back my empire..", '`Players in EverQuest:', '-'*27]
+        for member in who_list:
+            who_msg_list.append(f"[{ member['Level'] } {member['Class']}] {member['Name']} (Iksar) <Legacy of Ik> ZONE: {member['Zone']}")
+        if len(who_list) == 1:
+            who_msg_list.append(f'There is 1 player in EverQuest.`')
+        else:
+            who_msg_list.append(f'There are {len(who_list)} players in EverQuest.`')            
+        if len(who_list) == 0:
+            who_msg_list.append("**No one?** *Not a single one of you?* **GET BACK OUT THERE AND SLAY THE SOFT SKINS!**")
+        # Send /who Message
+        await client.alarm('\n'.join(who_msg_list))
+
+@client.command()
+async def ikbot(message):
+    print('---Processing !ikbot command.')
+    cmd_msg = f'You can download IkBot {IkBot_Ver} from:\n{IkBot_Rel}'
+    await client.alarm(cmd_msg)
+
+@client.command()
+async def roster(message):
+    print('---Processing !roster command.')
+    cmd_msg = f'My list of MIGHTY IKSAR can be found at:\nhttps://tinyurl.com/Ik-Roster'
+    await client.alarm(cmd_msg)
 
 #################################################################################################
-
 
 async def auto_start():
     # await client.connect()
@@ -514,9 +553,7 @@ async def auto_start():
     # if the log file was successfully opened, then initiate parsing
     if rv:
         # status message
-        print(f'Now parsing character log for: [{elf.char_name}]')
-        print(f'Log filename: [{elf.filename}]')
-        print(f'Parsing initiated by: [{elf.author}]')
+        print(f'Now parsing character log for {elf.char_name}: [{elf.filename}]')
         print(f'Heartbeat timeout (minutes): [{elf.heartbeat}]')
 
         # create the background processs and kick it off
@@ -529,4 +566,3 @@ async def auto_start():
 
 # let's go!!
 client.run(myconfig.BOT_TOKEN)
-
