@@ -20,10 +20,6 @@ import myconfig
 TEST_BOT = False
 # TEST_BOT                = True
 
-# Set Variables
-IkBot_Ver = 'v2023.0.3'
-IkBot_Rel = f'https://github.com/Vanifac/P99-Legacy-of-Ik-Bot/releases/tag/{IkBot_Ver}'
-
 CST = pytz.timezone('US/Central')
 
 # Google sheets integration
@@ -32,13 +28,13 @@ try:
     gc = pygsheets.authorize(service_account_json=myconfig.GOOGLE_SHEETS_KEY)
     ikbot_sheet  = gc.open('IkBot')
 
-    roster_sheet = ikbot_sheet.worksheet_by_title('Roster')
-    #roster_sheet = ikbot_sheet.worksheet_by_title('IkBot Testing Roster')
-    target_sheet = ikbot_sheet.worksheet_by_title('Targets')
-    item_sheet   = ikbot_sheet.worksheet_by_title('Items')
-    taunt_Sheet  = ikbot_sheet.worksheet_by_title('Taunts')
-    trade_sheet  = ikbot_sheet.worksheet_by_title('Trade')
-    quest_sheet  = ikbot_sheet.worksheet_by_title('Quests')
+    roster_sheet     = ikbot_sheet.worksheet_by_title('Roster')
+    #roster_sheet     = ikbot_sheet.worksheet_by_title('IkBot Testing Roster')
+    target_sheet     = ikbot_sheet.worksheet_by_title('Targets')
+    item_sheet       = ikbot_sheet.worksheet_by_title('Items')
+    taunt_Sheet      = ikbot_sheet.worksheet_by_title('Taunts')
+    trade_sheet      = ikbot_sheet.worksheet_by_title('Trade')
+    quest_sheet      = ikbot_sheet.worksheet_by_title('Quests')
     ENABLE_GOOGLE_SHEET = True
 except AttributeError as e:
     print("Connecting to google sheet failed.\nError: ")
@@ -61,6 +57,10 @@ else:
     taunt_death_list = ["testFAILURE"]
     taunt_new_member_list = ["testWelcome"]
 
+# Set Variables
+IkBot_Ver = 'v2023.0.3'
+IkBot_Ver_Latest = ikbot_sheet.worksheet_by_title('IkBot Info').get_value('A2')
+IkBot_Rel = f'https://github.com/Vanifac/P99-Legacy-of-Ik-Bot/releases/tag/{IkBot_Ver_Latest}'
 
 #################################################################################################
 
@@ -210,9 +210,9 @@ class EverquestLogFile:
                 elif re.match('^There (is|are) (\d)+ (player|players) in', trunc_line):
                     if self.roster_dict != self.new_roster_dict:
                         print('Updating Roster..')
-                        self.roster_name_list  = [member['Name'] for member in self.new_roster_dict]
-                        new_roster_list = [list(entry.values()) for entry in self.new_roster_dict]
-                        roster_sheet.update_values('A2', new_roster_list)
+                        self.roster_name_list = [member['Name'] for member in self.new_roster_dict]
+                        new_roster_list       = [list(member.values()) for member in self.new_roster_dict]
+                        roster_sheet.update_values('A2', new_roster_list, parse=False)
                     return None
 
                 # Level Parsing
@@ -387,8 +387,7 @@ async def parse():
                     to_send = f'{event[1]} just killed {event[2]}! **FOR IK!** Any good loot?'
                     if event[1] != elf.char_name:
                         await asyncio.sleep(random.randint(1,16))
-                    if to_send != client.last_sent:
-                        await client.alarm(to_send)
+                    await client.alarm(to_send)
 
                 # Notable Loot
                 elif 'Loot' in event[0]:
@@ -404,8 +403,7 @@ async def parse():
                     to_send = f"{event[1]} just looted the {event[2]} for me! Leave it with the War Baron and he'll get it to me."
                     if event[1] != elf.char_name:
                         await asyncio.sleep(random.randint(1,16))
-                    if to_send != client.content:
-                        await client.alarm(to_send, embed)
+                    await client.alarm(to_send, embed)
 
                 # IkBot Item
                 elif 'Quest' in event[0]:
@@ -421,8 +419,7 @@ async def parse():
                     to_send = f"{event[1]} just received the {event[2]} as reward for their wonderfully evil deeds, the Empire grows stronger!!"
                     if event[1] != elf.char_name:
                         await asyncio.sleep(1)
-                    if to_send != client.last_sent:
-                        await client.alarm(to_send, embed)
+                    await client.alarm(to_send, embed)
 
         else:
             # check the heartbeat.  Has our tracker gone silent?
@@ -459,9 +456,9 @@ class myClient(commands.Bot):
 
     # sound the alarm
     async def alarm(self, msg, embd=None):
-        await self.logging_channel.send(msg, embed=embd)
-
-        print(f'Alarm:{msg}')
+        if msg != client.last_sent:
+            await self.logging_channel.send(msg, embed=embd)
+            print(f'Alarm:{msg}')
 
 
 
@@ -478,7 +475,10 @@ client = myClient()
 # on_ready
 @client.event
 async def on_ready():
-    print(f'IkBot Version: {IkBot_Ver}')
+    print(f'\nIkBot Version: {IkBot_Ver}')
+    if IkBot_Ver != IkBot_Ver_Latest:
+        print(f'\033[31mYou are running an outdated IkBot! Please check the discord and download \033[32m{IkBot_Ver_Latest}\033[0m')
+        time.sleep(3)
     print(f'Discord.py version: {discord.__version__}')
     print(f'Logged on as {client.user}!')
     print(f'App ID: {client.user.id}')
@@ -525,7 +525,7 @@ async def who(message):
 @client.command()
 async def ikbot(message):
     print('---Processing !ikbot command.')
-    cmd_msg = f'You can download IkBot {IkBot_Ver} from:\n{IkBot_Rel}'
+    cmd_msg = f'You can download IkBot {IkBot_Ver_Latest} from:\n{IkBot_Rel}'
     await client.alarm(cmd_msg)
 
 @client.command()
