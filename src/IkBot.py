@@ -399,8 +399,10 @@ async def parse():
                         title=event[2],
                         url=wiki_link,
                         description=scraper.scrape_wikipage_item(wiki_link))
-                    except: 
+                    except Exception as e: 
                         print("failed to parse " + wiki_link)
+                        print("Error:")
+                        print(e)
                     to_send = f"{event[1]} just looted the {event[2]} for me! Leave it with the War Baron and he'll get it to me."
                     if event[1] != elf.char_name:
                         await asyncio.sleep(random.randint(1,16))

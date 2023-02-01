@@ -136,3 +136,4 @@ test.py
 src/myconfig.py
 src/myconfig.py
 tests/Logs/eqlog_Test_P1999Green.txt
+src/logs/*.txt

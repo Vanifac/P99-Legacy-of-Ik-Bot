@@ -1,5 +1,9 @@
 import requests
+import os
 from bs4 import BeautifulSoup
+
+# current working directory to point to SSL cert/pem file
+cwd = os.getcwd()
 
 class WikiScraper:
 
@@ -8,11 +12,7 @@ class WikiScraper:
 
     # only returns item description at the moment, but may try to parse more (ex: image)
     def scrape_wikipage_item(self, url):
-        # this requests.get() uses https and complains about not finding a certificate
-        #page = requests.get(url)
-        
-        # this does not use HTTPS so it does not look for certificate
-        page = requests.get(url, verify=False)
+        page = requests.get(url, verify=cwd+"/src/cert/wiki-project1999-com-chain.pem")
         soup = BeautifulSoup(page.content, "html.parser")
         
         return self.parse_description(soup)
