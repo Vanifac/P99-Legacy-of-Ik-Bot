@@ -35,6 +35,7 @@ try:
     taunt_Sheet      = ikbot_sheet.worksheet_by_title('Taunts')
     trade_sheet      = ikbot_sheet.worksheet_by_title('Trade')
     quest_sheet      = ikbot_sheet.worksheet_by_title('Quests')
+    message_sheet    = ikbot_sheet.worksheet_by_title('Msg Pri')
     ENABLE_GOOGLE_SHEET = True
 except AttributeError as e:
     print("Connecting to google sheet failed.\nError: ")
@@ -80,7 +81,7 @@ class EverquestLogFile:
         '^--(\w)+ (have|has) looted a',
         '^You have gained a level! Welcome to level ',
         '^You have become better at (.+)!',
-        '^(\w)+ tells you, \'Attacking (.+) Master.\'',
+        "^(\w)+ tells you, 'Attacking (.+) Master.'",
         '^(\w)+ -> (\w)+: IkBot-(Quest|Claim|Thrall)',
         "^(\w)+ (tells|told) (\w)+, 'IkBot-(Quest|Claim|Thrall)"
     ]
@@ -277,7 +278,8 @@ class EverquestLogFile:
 
     # Build / update roster entry
     def update_roster(self, who_str):
-        if '[ANONYMOUS]' in who_str: return None
+        if '[ANONYMOUS]' in who_str: 
+            return None
         who_str = who_str.strip('AFK ')
         ind = who_str.index('] '), who_str.index(' ('), who_str.index(' ')
         name = who_str[ind[0]+2:ind[1]]
@@ -385,8 +387,6 @@ async def parse():
                 # Notable Kills
                 elif 'Kill' in event[0]:
                     to_send = f'{event[1]} just killed {event[2]}! **FOR IK!** Any good loot?'
-                    if event[1] != elf.char_name:
-                        await asyncio.sleep(random.randint(1,16))
                     await client.alarm(to_send)
 
                 # Notable Loot
@@ -401,8 +401,6 @@ async def parse():
                     except: 
                         print("failed to parse " + wiki_link)
                     to_send = f"{event[1]} just looted the {event[2]} for me! Leave it with the War Baron and he'll get it to me."
-                    if event[1] != elf.char_name:
-                        await asyncio.sleep(random.randint(1,16))
                     await client.alarm(to_send, embed)
 
                 # IkBot Item
@@ -417,8 +415,6 @@ async def parse():
                     except: 
                         print("failed to parse " + wiki_link)
                     to_send = f"{event[1]} just received the {event[2]} as reward for their wonderfully evil deeds, the Empire grows stronger!!"
-                    if event[1] != elf.char_name:
-                        await asyncio.sleep(1)
                     await client.alarm(to_send, embed)
 
         else:
@@ -448,6 +444,7 @@ class myClient(commands.Bot):
     def __init__(self):
         self.content = ''
         self.last_sent = ''
+        self.last_msg_time = time.time()
         commands.Bot.__init__(
             self, command_prefix=myconfig.BOT_COMMAND_PREFIX, intents=intents)
     
@@ -456,10 +453,17 @@ class myClient(commands.Bot):
 
     # sound the alarm
     async def alarm(self, msg, embd=None):
-        if msg != client.last_sent:
+        secs_since_last = time.time() - client.last_msg_time
+        if msg == client.last_sent and secs_since_last < 30:
+            print('Duplicate message / Delay not met')
+            return
+        print(f'Alarm: {msg}')
+        try: message_sheet.append_table(values=[elf.char_name])
+        except: pass
+        time.sleep(2)
+        if message_sheet.get_value('A2') == elf.char_name:
+            message_sheet.clear(start='A2')
             await self.logging_channel.send(msg, embed=embd)
-            print(f'Alarm:{msg}')
-
 
 
 # create the global instance of the client that manages communication to the discord bot
@@ -495,13 +499,14 @@ async def on_message(message):
     #channel = message.channel
     if author == client.user:
         client.last_sent = message.content
+        client.last_msg_time = time.time()
     #print(
     #    f'Content received: [{client.content}] from [{author}] in channel [{channel}]')
     if myconfig.DISCORD_SERVER_CHANNELID == message.channel.id:
         await client.process_commands(message)
 
 # Discord !commands
-#Who command
+#Who command - check roster for people in in this hour and lists them in a response on discord
 @client.command()
 async def who(message):
     if ENABLE_GOOGLE_SHEET:
@@ -516,7 +521,7 @@ async def who(message):
         if len(who_list) == 1:
             who_msg_list.append(f'There is 1 player in EverQuest.`')
         else:
-            who_msg_list.append(f'There are {len(who_list)} players in EverQuest.`')            
+            who_msg_list.append(f'There are {len(who_list)} players in EverQuest.`')
         if len(who_list) == 0:
             who_msg_list.append("**No one?** *Not a single one of you?* **GET BACK OUT THERE AND SLAY THE SOFT SKINS!**")
         # Send /who Message
@@ -533,6 +538,17 @@ async def roster(message):
     print('---Processing !roster command.')
     cmd_msg = f'My list of MIGHTY IKSAR can be found at:\nhttps://tinyurl.com/Ik-Roster'
     await client.alarm(cmd_msg)
+    
+#@client.command()
+#async def claim(message):
+#    print('---Processing !claim command.')
+#    elf.roster_dict = roster_sheet.get_all_records()
+#    if member := next((item for item in elf.new_roster_dict if item['Name'] == name), {}):
+#        member.update({'Discord': '1234'})
+#    else:
+#       pass 
+#    cmd_msg = f'1234'
+#    await client.alarm(cmd_msg)
 
 #################################################################################################
 
