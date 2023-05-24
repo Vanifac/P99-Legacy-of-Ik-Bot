@@ -55,9 +55,8 @@ BOT_COMMAND_PREFIX      = '!'
 # token corresponds to the bot from discord developer portal
 BOT_TOKEN               = ''
 
-# some server ID's
-DISCORD_SERVER_NAME         = ""
 DISCORD_SERVER_CHANNELID    = ''  # Replace this with your ChannelID - Select it in Dev mode
+# NOTE: ChannelID must be an INT not a string
 
 # Google Sheets Key
 GOOGLE_SHEETS_KEY = dumps('')
