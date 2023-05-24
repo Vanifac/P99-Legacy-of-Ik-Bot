@@ -60,7 +60,10 @@ else:
 
 # Set Variables
 IkBot_Ver = 'v2023.0.3'
-IkBot_Ver_Latest = ikbot_sheet.worksheet_by_title('IkBot Info').get_value('A2')
+if ENABLE_GOOGLE_SHEET:
+    IkBot_Ver_Latest = ikbot_sheet.worksheet_by_title('IkBot Info').get_value('A2')
+else:
+    IkBot_Ver_Latest = IkBot_Ver
 IkBot_Rel = f'https://github.com/Vanifac/P99-Legacy-of-Ik-Bot/releases/tag/{IkBot_Ver_Latest}'
 
 #################################################################################################
@@ -445,6 +448,7 @@ class myClient(commands.Bot):
         self.content = ''
         self.last_sent = ''
         self.last_msg_time = time.time()
+        self.logging_channel = None
         commands.Bot.__init__(
             self, command_prefix=myconfig.BOT_COMMAND_PREFIX, intents=intents)
     
@@ -458,11 +462,14 @@ class myClient(commands.Bot):
             print('Duplicate message / Delay not met')
             return
         print(f'Alarm: {msg}')
-        try: message_sheet.append_table(values=[elf.char_name])
-        except: pass
-        time.sleep(2)
-        if message_sheet.get_value('A2') == elf.char_name:
-            message_sheet.clear(start='A2')
+        if ENABLE_GOOGLE_SHEET:
+            try: message_sheet.append_table(values=[elf.char_name])
+            except: pass
+            time.sleep(2)
+            if message_sheet.get_value('A2') == elf.char_name:
+                message_sheet.clear(start='A2')
+                await self.logging_channel.send(msg, embed=embd)
+        else:
             await self.logging_channel.send(msg, embed=embd)
 
 
