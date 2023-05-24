@@ -17,6 +17,10 @@ from discord.ext import commands
 import myconfig
 
 # allow for testing, by forcing the bot to read an old log file for the VT and VD fights
+from src.eq_logs.eq_log_event import EQLogEvent
+from src.eq_logs.eq_log_event_wiki_link import EQLogEventWikiLink
+from src.eq_logs.eq_log_parser import EQLogParser
+
 TEST_BOT = False
 # TEST_BOT                = True
 
@@ -341,6 +345,29 @@ class EverquestLogFile:
 elf = EverquestLogFile()
 # create the global instance of the web scraping class
 scraper = WikiScraper.WikiScraper()
+# create global for parser
+eq_log_parser = EQLogParser()
+
+
+async def trigger_discord_event(event: EQLogEvent):
+    # if event is type EQLogEventWikiLink
+    if isinstance(event, EQLogEventWikiLink):
+        wiki_link = event.get_wiki_link()
+        item_name = event.get_item_name()
+        embed = None
+        try:
+            embed = discord.Embed(
+                title=item_name,
+                url=wiki_link,
+                description=scraper.scrape_wikipage_item(wiki_link))
+        except:
+            print("failed to parse " + wiki_link)
+        to_send = f"{myconfig.DEFAULT_CHAR_NAME} just received the {item_name} as reward for their wonderfully evil deeds, the Empire grows stronger!!"
+        await client.alarm(to_send, embed)
+    else:
+        # TODO: Handle other event types - but ideally clean this up so discord, scraper, myconfig, client and any other dependencies are accessible to external classes
+        pass
+
 
 #################################################################################################
 
@@ -364,7 +391,11 @@ async def parse():
             elf.prevtime = now
             print(line, end='')
 
-            # does it match a trigger?
+            # NEW PARSING LOGIC
+            if event := eq_log_parser.parse(line):
+                await trigger_discord_event(event)
+
+            # does it match a trigger? - OLD PARSING LOGIC
             if event := elf.regex_match(line):
                 #time.sleep(.5)
                 #print(event)
